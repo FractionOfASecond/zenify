@@ -34,10 +34,10 @@
 #
 # For Zenfolio, we need the following:
 #
-#		Exif.Image.Make and Exif.Image.Model must be set 
-#			(default "Canon" / "Canon MP990 series Network")
+#   Exif.Image.Make and Exif.Image.Model must be set 
+#      (default "Canon" / "Canon MP990 series Network")
 #
-#		Date:         keep Exif.Photo.DateTimeOriginal and add just date
+#   Date:         keep Exif.Photo.DateTimeOriginal and add just date
 #                 to Iptc.Application2.DateCreated
 #   Title:        Iptc.Application2.Headline (prefix with 
 #                 Iptc.Application2.DateCreated so that Zenfolio can sort 
@@ -45,7 +45,8 @@
 #   Description:  Iptc.Application2.Caption
 #   Keywords:     Iptc.Application2.Keywords
 #   Rights:       Iptc.Application2.Copyright
-#		Creator/Publisher don't appear to be used by zenfolio
+#
+#   Creator/Publisher don't appear to be used by zenfolio
 #
 
 if (( ${#1} == 0 ))
