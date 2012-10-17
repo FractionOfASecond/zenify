@@ -1,0 +1,163 @@
+#!/bin/bash
+#
+###########################################################################
+#
+# This file is part of zenify.
+# 
+# zenify is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+# 
+# zenify is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+# 
+# You should have received a copy of the GNU General Public License
+# along with zenify.  If not, see <http://www.gnu.org/licenses/>.
+# 
+# Copyright 2012 Wayne Vosberg <wayne.vosberg@mindtunnel.com>
+#
+###########################################################################
+#
+# When darktable exports an image the following metadata is set:
+#
+#   Title:       Exif.Image.ImageDescription & Xmp.dc.title
+#   Description: Exif.Photo.UserComment      & Xmp.dc.description
+#   Creator:     Exif.Image.Artist           & Xmp.dc.creator
+#   Publisher:   Xmp.dc.publisher
+#   Rights:      Exif.Image.Copyright        & Xmp.dc.rights
+#   Keywords:    Xmp.dc.subject              & Xmp.lr.hierarchicalSubject
+#   Date:        Exif.Photo.DateTimeOriginal
+#
+#
+# For Zenfolio, we need the following:
+#
+#		Exif.Image.Make and Exif.Image.Model must be set 
+#			(default "Canon" / "Canon MP990 series Network")
+#
+#		Date:         keep Exif.Photo.DateTimeOriginal and add just date
+#                 to Iptc.Application2.DateCreated
+#   Title:        Iptc.Application2.Headline (prefix with 
+#                 Iptc.Application2.DateCreated so that Zenfolio can sort 
+#                 photos older than 1904)
+#   Description:  Iptc.Application2.Caption
+#   Keywords:     Iptc.Application2.Keywords
+#   Rights:       Iptc.Application2.Copyright
+#		Creator/Publisher don't appear to be used by zenfolio
+#
+
+if (( ${#1} == 0 ))
+then
+	echo "usage: $0 <file.jpg>"
+	exit
+else
+	JPG="$1"
+	echo -e "\n\n--------------------------------------"
+	echo -e "\npre Darktable values:\n"
+	imtag -g Exif.Image.ImageDescription -g Xmp.dc.title \
+		-g Exif.Photo.UserComment -g Xmp.dc.description -g Exif.Image.Artist \
+		-g Xmp.dc.creator -g Xmp.dc.publisher -g Exif.Image.Copyright \
+		-g Xmp.dc.rights -g Xmp.dc.subject -g Xmp.lr.hierarchicalSubject \
+		-g Exif.Photo.DateTimeOriginal "$JPG"
+	echo -e "\npre Zenfolio values:\n"
+	imtag -g Exif.Image.Make -g Exif.Image.Model -g Exif.Photo.DateTimeOriginal \
+		-g Iptc.Application2.DateCreated -g Iptc.Application2.Headline \
+		-g Iptc.Application2.Caption -g Iptc.Application2.Keywords \
+		-g Iptc.Application2.Copyright "$JPG"
+	echo -e "\n\n"
+
+	MAKE=$(imtag -g Exif.Image.Make "$JPG" | cut -d: -f2-)
+	MODEL=$(imtag -g Exif.Image.Model "$JPG" | cut -d: -f2-)
+	DATE=$(imtag -g Exif.Photo.DateTimeOriginal "$JPG" | cut -d: -f2-)
+	CAPTION=$(imtag -g Exif.Photo.UserComment "$JPG" | cut -d: -f2-)
+	KEYWORD=$(imtag -g Xmp.dc.subject "$JPG" | cut -d: -f2-)
+	DC=$(imtag -g Exif.Photo.DateTimeOriginal "$JPG" | cut -d: -f2- | cut -d" " -f1)
+	TITLE=$(imtag -g Exif.Image.ImageDescription "$JPG" | cut -d: -f2-)
+	RIGHTS=$(imtag -g Exif.Image.Copyright "$JPG" | cut -d: -f2-)
+
+	#
+	# make sure make and model are set
+	#
+	if (( ${#MAKE} == 0 ))
+	then
+		imtag -q -s Exif.Image.Make=Canon "$JPG"
+	fi
+	if (( ${#MODEL} == 0 ))
+	then
+		imtag -q -s Exif.Image.Model="Canon MP990 series Network" "$JPG"
+	fi
+
+	# make sure date is set
+	if (( ${#DATE} == 0 ))
+	then
+		echo "file $JPG error! DATE=$DATE"
+		#exit
+	else
+		# YYYY:MM:DD HH:MM:SS
+		DD=$(echo "$DATE" | cut -d\  -f1)
+		TT=$(echo "$DATE" | cut -d\  -f2)
+		Y=$(echo $DD | cut -d: -f1)
+		Mo=$(echo $DD | cut -d: -f2)
+		Mo=${Mo#0}
+		D=$(echo $DD | cut -d: -f3)
+		D=${D#0}
+		H=$(echo $TT | cut -d: -f1)
+		H=${H#0}
+		Mi=$(echo $TT | cut -d: -f2)
+		Mi=${Mi#0}
+		S=$(echo $TT | cut -d: -f3)
+		S=${S#0}
+		#echo "$JPG : $DATE -> $Y,$Mo,$D,$H,$Mi,$S"
+	fi
+
+	# make sure caption is set and the same across the board
+	if (( ${#CAPTION} > 0 ))
+	then
+		# remove any possible leading [' [" and trailing '] "]
+		CAPTION=${CAPTION#\[\'}
+		CAPTION=${CAPTION#\[\"}
+		CAPTION=${CAPTION%\'\]}
+		CAPTION=${CAPTION%\"\]}
+	fi
+
+	if (( ${#RIGHTS} > 0 ))
+	then
+		imtag -q -s Iptc.Application2.Copyright="$RIGHTS" "$JPG"
+	fi
+
+	if (( ${#CAPTION} > 0 ))
+	then
+		imtag -q -s Iptc.Application2.Caption="$CAPTION" "$JPG"
+	else
+		echo "ERROR: No Caption!"
+	fi
+
+
+	# make sure the keywords are set and the same
+	if (( ${#KEYWORD} == 0 )) 
+	then
+		echo "ERROR: No Keywords!"
+	else
+		imtag -q -s Iptc.Application2.Keywords="$KEYWORD" "$JPG"
+	fi
+
+	DC="datetime.date($Y,$Mo,$D)"
+	#echo "$JPG : DC -> $DC"
+	eval "imtag -q -s Iptc.Application2.DateCreated=\"$DC\" \"$JPG\""
+	DC=$(imtag -g Iptc.Application2.DateCreated "$JPG" | cut -d: -f2-)
+	DC=${DC#\[\'}
+	DC=${DC#\[\"}
+	DC=${DC%\'\]}
+	DC=${DC%\"\]}
+
+	imtag -q -s Iptc.Application2.Headline="$DC - $TITLE" "$JPG"
+
+	echo -e "\npost Zenfolio values:\n"
+	imtag -g Exif.Image.Make -g Exif.Image.Model -g Exif.Photo.DateTimeOriginal \
+		-g Iptc.Application2.DateCreated -g Iptc.Application2.Headline \
+		-g Iptc.Application2.Caption -g Iptc.Application2.Keywords \
+		-g Iptc.Application2.Copyright "$JPG"
+
+fi
