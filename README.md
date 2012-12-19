@@ -28,7 +28,7 @@ Zenify will copy the values to the appropriate Iptc fields:
 
 <table>
 	<tr>
-		<td>Title</td><td>Iptc.Application2</td>
+		<td>Title</td><td>Iptc.Application2.Headline</td>
 	</tr>
 	<tr>
 		<td>Caption</td><td>Iptc.Application2.Caption</td>
@@ -40,4 +40,7 @@ Zenify will copy the values to the appropriate Iptc fields:
 
 Zenify will also set Exif.Image.Make/Model and delete the same meta variables
 as [eogMetaEdit](http://github.com/voabergw/eogMetaEdit).
+
+Zenify should be run on files exported from Darktable *before* they are
+uploaded to Zenfolio.
 
