@@ -49,6 +49,8 @@
 #   Creator/Publisher don't appear to be used by zenfolio
 #
 
+VER="0.2b"
+
 if (( ${#1} == 0 ))
 then
 	echo "usage: $0 <file.jpg>"
@@ -57,24 +59,35 @@ else
 	JPG="$1"
 	echo -e "\n\n--------------------------------------"
 	echo -e "\npre Darktable values:\n"
-	imtag -g Exif.Image.ImageDescription -g Xmp.dc.title \
-		-g Exif.Photo.UserComment -g Xmp.dc.description -g Exif.Image.Artist \
-		-g Xmp.dc.creator -g Xmp.dc.publisher -g Exif.Image.Copyright \
-		-g Xmp.dc.rights -g Xmp.dc.subject -g Xmp.lr.hierarchicalSubject \
-		-g Exif.Photo.DateTimeOriginal "$JPG"
+	imtag -g Xmp.dc.title -g Iptc.Application2.Headline \
+		-g Exif.Image.ImageDescription \
+		-g Xmp.dc.description -g Iptc.Application2.Caption \
+		-g Exif.Photo.UserComment -g Xmp.dc.subject -g Xmp.lr.hierarchicalSubject \
+		-g Iptc.Application2.Keywords "$JPG"
 	echo -e "\npre Zenfolio values:\n"
-	imtag -g Exif.Image.Make -g Exif.Image.Model -g Exif.Photo.DateTimeOriginal \
-		-g Iptc.Application2.DateCreated -g Iptc.Application2.Headline \
-		-g Iptc.Application2.Caption -g Iptc.Application2.Keywords \
-		-g Iptc.Application2.Copyright "$JPG"
+	imtag -g Exif.Image.Make -g Exif.Image.Model \
+		-g Iptc.Application2.Headline -g Iptc.Application2.Caption \
+		-g Iptc.Application2.Keywords "$JPG"
+	echo -e "\npre time related values:\n"
+	imtag -g Exif.Photo.DateTimeOriginal -g Exif.Image.DateTimeOriginal \
+		-g Exif.Photo.DateTimeDigitized -g Exif.Image.DateTime \
+		-g Iptc.Application2.DateCreated -g Iptc.Application2.TimeCreated "$JPG"
+	echo -e "\npre misc values:\n"
+	imtag -g Xmp.dc.creator -g Xmp.dc.publisher -g Exif.Image.Copyright \
+		-g Iptc.Application2.Copyright -g Xmp.dc.rights "$JPG"
+	echo -e "\npre values to be removed:\n"
+	imtag -g Xmp.exif.DateTimeOriginal -g Xmp.dc.date \
+		-g Xmp.acdsee.caption "$JPG"
 	echo -e "\n\n"
 
+	# it is assumed the file being processed was just exported by darktable
 	MAKE=$(imtag -g Exif.Image.Make "$JPG" | cut -d: -f2-)
 	MODEL=$(imtag -g Exif.Image.Model "$JPG" | cut -d: -f2-)
 	DATE=$(imtag -g Exif.Photo.DateTimeOriginal "$JPG" | cut -d: -f2-)
 	CAPTION=$(imtag -g Exif.Photo.UserComment "$JPG" | cut -d: -f2-)
 	KEYWORD=$(imtag -g Xmp.dc.subject "$JPG" | cut -d: -f2-)
-	DC=$(imtag -g Exif.Photo.DateTimeOriginal "$JPG" | cut -d: -f2- | cut -d" " -f1)
+	DC=$(echo "$DATE" | cut -d" " -f1)
+	TC=$(echo "$DATE" | cut -d" " -f2)
 	TITLE=$(imtag -g Exif.Image.ImageDescription "$JPG" | cut -d: -f2-)
 	RIGHTS=$(imtag -g Exif.Image.Copyright "$JPG" | cut -d: -f2-)
 
@@ -83,11 +96,11 @@ else
 	#
 	if (( ${#MAKE} == 0 ))
 	then
-		imtag -q -s Exif.Image.Make=Canon "$JPG"
+		imtag -q -s Exif.Image.Make="$0" "$JPG"
 	fi
 	if (( ${#MODEL} == 0 ))
 	then
-		imtag -q -s Exif.Image.Model="Canon MP990 series Network" "$JPG"
+		imtag -q -s Exif.Image.Model="$0 $VER" "$JPG"
 	fi
 
 	# make sure date is set
@@ -111,6 +124,9 @@ else
 		S=$(echo $TT | cut -d: -f3)
 		S=${S#0}
 		#echo "$JPG : $DATE -> $Y,$Mo,$D,$H,$Mi,$S"
+		imtag -q -s Exif.Image.DateTimeOriginal="$DATE" "$JPG"
+		imtag -q -s Exif.Photo.DateTimeDigitized="$DATE" "$JPG"
+		imtag -q -s Exif.Image.DateTime="$DATE" "$JPG"
 	fi
 
 	# make sure caption is set and the same across the board
@@ -131,6 +147,7 @@ else
 	if (( ${#CAPTION} > 0 ))
 	then
 		imtag -q -s Iptc.Application2.Caption="$CAPTION" "$JPG"
+		imtag -q -s Xmp.dc.description="$CAPTION" "$JPG"
 	else
 		echo "ERROR: No Caption!"
 	fi
@@ -145,8 +162,10 @@ else
 	fi
 
 	DC="datetime.date($Y,$Mo,$D)"
+	TC="datetime.time($H,$Mi,$S)"
 	#echo "$JPG : DC -> $DC"
 	eval "imtag -q -s Iptc.Application2.DateCreated=\"$DC\" \"$JPG\""
+	eval "imtag -q -s Iptc.Application2.TimeCreated=\"$TC\" \"$JPG\""
 	DC=$(imtag -g Iptc.Application2.DateCreated "$JPG" | cut -d: -f2-)
 	DC=${DC#\[\'}
 	DC=${DC#\[\"}
@@ -154,11 +173,34 @@ else
 	DC=${DC%\"\]}
 
 	imtag -q -s Iptc.Application2.Headline="$DC - $TITLE" "$JPG"
+	imtag -q -s Xmp.dc.title="$DC - $TITLE" "$JPG"
+	imtag -q -s Exif.Image.ImageDescription="$DC - $TITLE" "$JPG"
 
+	imtag -q -s Xmp.exif.DateTimeOriginal="NULL" "$JPG"
+	imtag -q -s Xmp.dc.date="NULL" "$JPG"
+	imtag -q -s Xmp.acdsee.capiton="NULL" "$JPG"
+
+	echo -e "\n\n--------------------------------------"
+	echo -e "\npost Darktable values:\n"
+	imtag -g Xmp.dc.title -g Iptc.Application2.Headline \
+		-g Exif.Image.ImageDescription \
+		-g Xmp.dc.description -g Iptc.Application2.Caption \
+		-g Exif.Photo.UserComment -g Xmp.dc.subject -g Xmp.lr.hierarchicalSubject \
+		-g Iptc.Application2.Keywords "$JPG"
 	echo -e "\npost Zenfolio values:\n"
-	imtag -g Exif.Image.Make -g Exif.Image.Model -g Exif.Photo.DateTimeOriginal \
-		-g Iptc.Application2.DateCreated -g Iptc.Application2.Headline \
-		-g Iptc.Application2.Caption -g Iptc.Application2.Keywords \
-		-g Iptc.Application2.Copyright "$JPG"
+	imtag -g Exif.Image.Make -g Exif.Image.Model \
+		-g Iptc.Application2.Headline -g Iptc.Application2.Caption \
+		-g Iptc.Application2.Keywords "$JPG"
+	echo -e "\npost time related values:\n"
+	imtag -g Exif.Photo.DateTimeOriginal -g Exif.Image.DateTimeOriginal \
+		-g Exif.Photo.DateTimeDigitized -g Exif.Image.DateTime \
+		-g Iptc.Application2.DateCreated -g Iptc.Application2.TimeCreated "$JPG"
+	echo -e "\npost misc values:\n"
+	imtag -g Xmp.dc.creator -g Xmp.dc.publisher -g Exif.Image.Copyright \
+		-g Iptc.Application2.Copyright -g Xmp.dc.rights "$JPG"
+	echo -e "\npost values to be removed:\n"
+	imtag -g Xmp.exif.DateTimeOriginal -g Xmp.dc.date \
+		-g Xmp.acdsee.caption "$JPG"
+	echo -e "\n\n"
 
 fi
